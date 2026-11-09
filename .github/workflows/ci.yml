@@ -1,0 +1,36 @@
+name: MES checks
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mes
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: mes_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U mes -d mes_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://mes:test-only@localhost:5432/mes_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r backend/requirements-dev.txt
+      - run: pytest backend/tests -q
+      - run: python scripts/export_openapi.py && git diff --exit-code docs/implementation/openapi.json
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: docker compose --env-file .env.example config -q
