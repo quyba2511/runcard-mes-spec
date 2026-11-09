@@ -6,9 +6,10 @@ from .db import all_rows, one, jb, clean, lock
 from .domain import transition, equipment_transition, require, invariant, number, QTY
 from .security import ACTION_PERMISSION, allowed, consume_session, digest
 from .bootstrap import EVENTS
+from . import gates
 
 CARD_COLUMNS = ('card_no','work_order_no','item_no','item_name','unit','route_free','route_version_id','current_node_id',
- 'status','source_type','data_source','parent_card_id','original_qty',*QTY,'cancel_reason','version','abnormal_counts','origin_record_id')
+ 'status','source_type','data_source','parent_card_id','original_qty',*QTY,'cancel_reason','version','abnormal_counts','origin_record_id','work_order_id')
 
 
 def audit(db, actor, action, before=None, after=None, reason=None, payload=None, equipment_id=None):
@@ -100,6 +101,7 @@ def set_equipment(db, actor, equipment_id, reason_code, note='', card_id=None, a
     db.execute('INSERT INTO equipment_status_history(equipment_id,state,reason_code,run_card_id,recorded_by,note) VALUES(%s,%s,%s,%s,%s,%s)',(equipment_id,reason['state'],reason_code,card_id,actor['id'],note))
     updated=one(db,'UPDATE equipments SET state=%s,reason_code=%s WHERE id=%s RETURNING *',(reason['state'],reason_code,equipment_id))
     audit(db,actor,'set-equipment-status',reason=note,payload={'before':e,'after':updated},equipment_id=equipment_id)
+    gates.on_equipment_change(db,actor,e,updated,reason,note)
     if reason['state']=='MAINTENANCE' and e['state']!='MAINTENANCE':
         notify(db,'EQUIPMENT_MAINTENANCE',equipment_id=equipment_id,body=f"{e['mes_code']} · {reason['name']} · {note}")
     if reason['state']!='MAINTENANCE':
@@ -158,6 +160,7 @@ def card_action(db, actor, card_id, action):
         ctx['last_record']=last
         ctx['subsequent_mutation']=bool(last and (not last.get('after_card') or any(number(last['after_card'].get(k,0))!=number(card[k]) for k in QTY) or last['after_card'].get('current_node_id')!=card['current_node_id']))
         ctx['processed_defects']=bool(last and one(db,"SELECT 1 FROM run_cards WHERE origin_record_id=%s AND (status<>'DEFECT_HOLD' OR version<>1)",(last['id'],)))
+    gates.precheck(db,actor,card,action,ctx,kind)
     result=transition(card,action,ctx)
     updated=result['card']
     # Persist compare-and-swap even though the service lock already serializes commands.
@@ -223,6 +226,7 @@ def card_action(db, actor, card_id, action):
     if event: notify(db,event,card_id,body=f"{stored['card_no']} · {action.get('reason') or ''}")
     if kind in {'release','revoke'} or stored['status'] in {'SCRAPPED','TRANSFERRED','CANCELLED'}:
         db.execute('UPDATE notification_jobs SET resolved_at=now() WHERE run_card_id=%s AND resolved_at IS NULL',(card_id,))
+    gates.after_action(db,actor,card,stored,kind,record_id)
     return {'card':stored,'children':children}
 
 
