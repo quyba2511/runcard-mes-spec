@@ -34,3 +34,14 @@ jobs:
       - run: npm run build
         working-directory: frontend
       - run: docker compose --env-file .env.example config -q
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/setup_env.py
+      - run: docker compose up --build -d --wait --wait-timeout 180
+      - run: python scripts/smoke_compose.py
+      - if: failure()
+        run: docker compose logs --tail=80
+      - if: always()
+        run: docker compose down -v

@@ -15,7 +15,7 @@ On 2026-11-09: **75 tests passed** (52 domain cases and 23 database/API cases); 
 - Python business-rule and API/database tests executed using PGlite's PostgreSQL engine and socket adapter because a standalone PostgreSQL service/Docker was unavailable. This verifies SQL/schema/API behavior but is **not** proof of production concurrency or Docker startup.
 - TypeScript typecheck and optimized Vite production build executed successfully.
 - Browser preview verified the login layout and Vietnamese/Traditional Chinese switch. The preview host isolates the frontend from the Python/PostgreSQL runtime; authenticated screens, camera access, physical scanner behavior and installed-PWA behavior still require browser/device acceptance testing with Docker Compose.
-- GitHub Actions is configured to rerun the same backend suite against standalone PostgreSQL 16 and to typecheck/build the frontend and validate the Compose configuration.
+- GitHub Actions passed the same 75 tests against standalone PostgreSQL 16, typechecked/built the frontend, verified the generated OpenAPI contract, and validated the Compose configuration. A separate Compose smoke job builds and starts all four services, then checks both app entry points, login, seeded data and OpenAPI.
 
 ## Deliberate boundaries
 
