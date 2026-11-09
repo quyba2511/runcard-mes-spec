@@ -73,7 +73,7 @@ Mở `.env` trên máy của bạn để lấy mật khẩu demo và mã thiết
 | Máy in kem hàn | `DEMO-PRT01` |
 | QC mẫu trạm đầu | Độ dày kem hàn 100–150 μm |
 
-Compose khởi tạo `schema.sql` → `seed_demo.sql` → `002_runtime.sql` trên volume mới. Với database đã có schema, áp dụng migration **một lần**, sao lưu trước và không chạy lại các script khởi tạo. Lệnh `docker compose down` giữ dữ liệu; không dùng `-v` nếu muốn giữ demo.
+Compose khởi tạo `schema.sql` → `seed_demo.sql` → `002_runtime.sql` → `003_mes_extensions.sql` trên volume mới. Chức năng mở rộng (lệnh sản xuất, điều độ, vật tư/BOM, truy xuất, SPC/NCR/首件, OEE, bảo trì, tay nghề, SOP, PLC/ERP): xem [docs/10-mes-extensions.md](docs/10-mes-extensions.md). Với database đã có schema, áp dụng migration **một lần**, sao lưu trước và không chạy lại các script khởi tạo. Lệnh `docker compose down` giữ dữ liệu; không dùng `-v` nếu muốn giữ demo.
 
 Để sử dụng camera/PWA trên tablet qua LAN, cần HTTPS. Backend không mở cổng trực tiếp ra ngoài; frontend proxy cùng origin tới API. Không có endpoint ERP/SMTP mặc định, nên không gửi dữ liệu ra hệ thống thật.
 
@@ -102,5 +102,6 @@ Backend local: thiết lập `DATABASE_URL`, `DEVICE_TOKEN`, và nếu cần d�
 5. [Operator PWA và Admin](frontend/src/main.tsx)
 6. [Cách kiểm chứng, giới hạn và kịch bản nghiệm thu](docs/implementation/03-validation.md)
 7. [Docker Compose](compose.yaml)
+8. [Chức năng MES mở rộng: lệnh sản xuất, điều độ, vật tư, truy xuất, chất lượng, OEE, bảo trì, SOP, PLC/ERP](docs/10-mes-extensions.md)
 
 **Điểm đã chốt với chủ repo:** BR-01 mở rộng thêm số lượng trả kho/chuyển thẻ. 放行 có hai chế độ lý do, mặc định bắt buộc theo BR-24. Chi tiết và các mục backlog chưa triển khai được ghi trong tài liệu trên.

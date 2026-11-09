@@ -1,6 +1,4 @@
 import React, {
-  createContext,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -51,9 +49,9 @@ import {
 } from "./api";
 import { Lang, translate } from "./i18n";
 import "./style.css";
+import { Context, useApp } from "./ctx";
+import * as Mes from "./mes";
 
-const Context = createContext<any>(null);
-const useApp = () => useContext(Context);
 const fmt = (n: any) =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(
     Number(n || 0),
@@ -298,6 +296,16 @@ function App() {
     ["cards", Layers3],
     ["equipment", Factory],
     ["routes", Workflow],
+    ["workorders", ClipboardList],
+    ["schedule", Mes.icons.schedule],
+    ["materials", Mes.icons.materials],
+    ["trace", Mes.icons.trace],
+    ["quality", Mes.icons.quality],
+    ["reports", Mes.icons.reports],
+    ["maintenance", Wrench],
+    ["people", Mes.icons.people],
+    ["documents", Mes.icons.documents],
+    ["integration", Mes.icons.integration],
     ["records", ClipboardList],
     ["audit", ShieldCheck],
     ["notifications", Bell],
@@ -460,6 +468,8 @@ function App() {
                 <Routes />
               ) : page === "settings" ? (
                 <Settings />
+              ) : Mes.pages[page] ? (
+                React.createElement(Mes.pages[page])
               ) : page === "records" ? (
                 <Resource resource="work-records" title="records" />
               ) : page === "audit" ? (
@@ -1448,15 +1458,15 @@ function CardPage({ id, back }: { id: string; back: () => void }) {
           </b>
         </div>
         <div>
-          <span>{t("version")}</span>
-          <b>v{c.version}</b>
+          <span>{t("routeVersion")}</span>
+          <b>{data.route ? data.route.version : "—"}</b>
         </div>
       </section>
       <section className="panel">
         <div className="panel-heading">
           <h2>{t("progress")}</h2>
           <span className="muted">
-            {t("route")} #{c.route_version_id || "—"}
+            {data.route ? data.route.name : t("noRoute")}
           </span>
         </div>
         <div className="route-timeline">
@@ -1479,6 +1489,7 @@ function CardPage({ id, back }: { id: string; back: () => void }) {
           ))}
         </div>
       </section>
+      <Mes.CardExtras card={c} />
       <section className="panel action-panel">
         <h2>{t("actions")}</h2>
         <div className="action-buttons">
@@ -1551,7 +1562,7 @@ function CardPage({ id, back }: { id: string; back: () => void }) {
                     {r.output_qty === null ? "—" : fmt(r.output_qty)}
                   </td>
                   <td>
-                    {r.revoked_at ? t("revoke") : r.end_type || t("running")}
+                    {r.revoked_at ? t("revoke") : r.end_type ? t(r.end_type) : t("running")}
                   </td>
                   <td>
                     <small>{dt(r.started_at)}</small>
@@ -2176,6 +2187,7 @@ function EquipmentPage({ id, back }: { id: string; back: () => void }) {
       <Title title={e.mes_code} subtitle={e.name}>
         <Badge value={e.state} />
       </Title>
+      <Mes.EquipmentExtras id={id} />
       <section className="panel equipment-detail">
         <QRCode value={"EQ:" + e.mes_code} />
         <div>
