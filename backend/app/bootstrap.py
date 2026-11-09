@@ -5,7 +5,8 @@ from .security import PERMISSIONS, hash_password
 
 EVENTS = {'TEMPORARY_OPERATION':'臨時工序放行','DEFECT_CREATED':'瑕疵單開立','DEFECT_VOIDED':'瑕疵單作廢',
  'EQUIPMENT_ABNORMAL':'設備異常','EQUIPMENT_MAINTENANCE':'設備維修','SKIP_NODE':'跳站上工',
- 'QUALITY_HOLD':'品質不合格待判定','QUALITY_SCRAP':'品質報廢','REWORK':'重工判定','RUNCARD_ABNORMAL':'RunCard 異常','SPLIT':'拆批'}
+ 'QUALITY_HOLD':'品質不合格待判定','QUALITY_SCRAP':'品質報廢','REWORK':'重工判定','RUNCARD_ABNORMAL':'RunCard 異常','SPLIT':'拆批',
+ 'PM_DUE':'保養到期','NCR_OPENED':'不合格品報告','TOOL_LIFE':'治具壽命到期'}
 
 
 def bootstrap():

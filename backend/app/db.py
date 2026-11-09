@@ -1,7 +1,7 @@
 import os
 import json
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 import psycopg
@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 
 
 def serialize(value):
-    if isinstance(value, (datetime, date)):
+    if isinstance(value, (datetime, date, time)):
         return value.isoformat()
     if isinstance(value, (Decimal, UUID)):
         return str(value)

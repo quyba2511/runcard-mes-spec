@@ -8,6 +8,7 @@ import urllib.request
 from email.message import EmailMessage
 from .db import connection, one, all_rows, clean
 from .service import deliver_notification
+from .mes import format_outbox, pm_tick
 
 log=logging.getLogger('mes.worker')
 
@@ -22,12 +23,14 @@ def tick():
             try:
                 headers={'Content-Type':'application/json','Idempotency-Key':event['idempotency_key']}
                 if os.environ.get('ERP_WEBHOOK_TOKEN'): headers['Authorization']='Bearer '+os.environ['ERP_WEBHOOK_TOKEN']
-                req=urllib.request.Request(endpoint,data=json.dumps(clean(event)).encode(),headers=headers,method='POST')
+                req=urllib.request.Request(endpoint,data=json.dumps(format_outbox(db,event)).encode(),headers=headers,method='POST')
                 with urllib.request.urlopen(req,timeout=10) as response:
                     if not 200<=response.status<300: raise RuntimeError('ERP rejected delivery')
                 db.execute("UPDATE sync_outbox SET status='SENT',sent_at=now(),attempts=attempts+1,last_error=NULL WHERE id=%s",(event['id'],))
             except Exception as exc:
                 db.execute("UPDATE sync_outbox SET status='FAILED',attempts=attempts+1,last_error=%s,next_attempt_at=now()+(%s * interval '1 second') WHERE id=%s",(type(exc).__name__,min(3600,2**min(event['attempts']+1,12)),event['id']))
+    with connection() as db:
+        pm_tick(db)
     with connection() as db:
         jobs=all_rows(db,'SELECT j.*,r.repeat_enabled,r.repeat_every_min,r.repeat_max,r.escalate_enabled,r.escalate_after_min FROM notification_jobs j JOIN notification_rules r ON r.event_code=j.event_code WHERE j.resolved_at IS NULL AND (j.next_at<=now() OR (r.escalate_enabled AND NOT j.escalated AND j.created_at+(r.escalate_after_min * interval \'1 minute\')<=now())) ORDER BY j.id FOR UPDATE OF j SKIP LOCKED LIMIT 20')
         now=one(db,'SELECT now() AS at')['at']
