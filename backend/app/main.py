@@ -21,6 +21,7 @@ from .domain import RuleError, require
 from .security import authenticate, session, verify, allowed, digest, hash_password, PERMISSIONS
 from .bootstrap import bootstrap
 from .service import run_command, card_action, create_card, set_equipment, report_breakdown, audit
+from . import mes
 
 @asynccontextmanager
 async def lifespan(app):
@@ -141,8 +142,11 @@ def login(body:Login,request:Request):
 def employee_login(body:EmployeeLogin,request:Request,x_device_token:Annotated[str|None,Header()]=None):
     throttle(request)
     expected=os.environ.get('DEVICE_TOKEN','')
-    require(expected and x_device_token and hmac.compare_digest(expected,x_device_token),'UNAUTHORIZED','Provisioned device token required')
     with connection() as db:
+        # Shared bootstrap token (env) or a per-tablet token issued under 'Tích hợp → Thiết bị' that can be revoked alone.
+        tablet=one(db,"SELECT id FROM devices WHERE token_hash=%s AND kind='TABLET' AND is_active",(digest(x_device_token or ''),))
+        require(tablet or (expected and x_device_token and hmac.compare_digest(expected,x_device_token)),'UNAUTHORIZED','Provisioned device token required')
+        if tablet: db.execute('UPDATE devices SET last_seen_at=now() WHERE id=%s',(tablet['id'],))
         a=one(db,'SELECT id FROM accounts WHERE employee_no=%s AND is_active',(body.employee_no,))
         require(a,'UNAUTHORIZED','Unknown employee number')
         return clean(session(db,a['id'],'operator',body.reuse))
@@ -215,8 +219,9 @@ def card_detail(card_id:UUID,a:Actor):
     with connection() as db:
         c=one(db,'SELECT * FROM run_cards WHERE id=%s',(card_id,))
         require(c,'NOT_FOUND','Card not found')
-        records=all_rows(db,'SELECT w.*,o.name AS operation_name,e.mes_code,a.display_name AS operator_name FROM work_records w JOIN operations o ON o.id=w.operation_id LEFT JOIN equipments e ON e.id=w.equipment_id JOIN accounts a ON a.id=w.operator_id WHERE w.run_card_id=%s ORDER BY started_at DESC,w.id DESC',(card_id,))
-        return clean({'card':c,'records':records,'children':all_rows(db,'SELECT * FROM run_cards WHERE parent_card_id=%s',(card_id,)),
+        records=all_rows(db,'SELECT w.*,o.name AS operation_name,e.mes_code,COALESCE(a.employee_no,a.display_name) AS operator_name,a.display_name AS operator_display FROM work_records w JOIN operations o ON o.id=w.operation_id LEFT JOIN equipments e ON e.id=w.equipment_id JOIN accounts a ON a.id=w.operator_id WHERE w.run_card_id=%s ORDER BY started_at DESC,w.id DESC',(card_id,))
+        route=one(db,'SELECT r.name,v.version FROM process_route_versions v JOIN process_routes r ON r.id=v.route_id WHERE v.id=%s',(c['route_version_id'],)) if c['route_version_id'] else None
+        return clean({'card':c,'route':route,'records':records,'children':all_rows(db,'SELECT * FROM run_cards WHERE parent_card_id=%s',(card_id,)),
           'nodes':all_rows(db,'SELECT n.*,o.name,o.code FROM route_nodes n JOIN operations o ON o.id=n.operation_id WHERE n.route_version_id=%s ORDER BY seq',(c['route_version_id'],)),
           'defects':all_rows(db,'SELECT d.* FROM work_record_defects d JOIN work_records w ON w.id=d.work_record_id WHERE w.run_card_id=%s',(card_id,)),
           'qc':all_rows(db,'SELECT q.* FROM work_record_qc_values q JOIN work_records w ON w.id=q.work_record_id WHERE w.run_card_id=%s',(card_id,))})
@@ -541,3 +546,5 @@ async def import_cards(a:Actor,idempotency_key:Key,file:UploadFile=File(),valida
             db.rollback()
             return {'valid':True,'count':len(result)}
         return run_command(db,a,idempotency_key,{'import':cards},lambda:{'items':[create_card(db,a,c) for c in cards]})
+
+app.include_router(mes.router)
