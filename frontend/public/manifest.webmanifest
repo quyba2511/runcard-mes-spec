@@ -1,0 +1,18 @@
+{
+  "id": "/operator",
+  "name": "RunCard MES Operator",
+  "short_name": "RunCard",
+  "start_url": "/operator",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f3",
+  "theme_color": "#193d35",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
