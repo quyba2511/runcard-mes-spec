@@ -51,6 +51,7 @@ import { Lang, translate } from "./i18n";
 import "./style.css";
 import { Context, useApp } from "./ctx";
 import * as Mes from "./mes";
+import { MultiPick } from "./multipick";
 
 const fmt = (n: any) =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(
@@ -2933,13 +2934,6 @@ function ConfigModal({
   const [form, setForm] = useState<Row>(initial);
   const change = (key: string, value: any) =>
     setForm({ ...form, [key]: value });
-  const toggle = (key: string, value: any) =>
-    change(
-      key,
-      form[key].includes(value)
-        ? form[key].filter((x: any) => x !== value)
-        : [...form[key], value],
-    );
   const textField = (
     key: string,
     label: string,
@@ -2973,19 +2967,15 @@ function ConfigModal({
     idKey = "id",
     nameKey = "name",
   ) => (
-    <div className="wide multiselect">
-      <h3>{t(label)}</h3>
-      {options.map((o) => (
-        <label className="checkbox" key={o[idKey]}>
-          <input
-            type="checkbox"
-            checked={form[key].includes(o[idKey])}
-            onChange={() => toggle(key, o[idKey])}
-          />
-          {o[nameKey]}
-        </label>
-      ))}
-    </div>
+    <MultiPick
+      key={key}
+      label={t(label)}
+      options={options}
+      value={form[key]}
+      onChange={(next) => change(key, next)}
+      idKey={idKey}
+      nameKey={nameKey}
+    />
   );
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
