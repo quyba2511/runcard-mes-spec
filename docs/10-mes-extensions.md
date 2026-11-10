@@ -24,6 +24,8 @@ Mọi thao tác ghi đều đi qua `run_command` như thao tác RunCard: khóa l
 
 Tất cả mặc định **tắt**, nên quy tắc BR-01…BR-24 không đổi cho đến khi nhà máy chủ động bật.
 
+Trong Cấu hình → Công đoạn, đặt chu kỳ chuẩn, yêu cầu kiểm đầu chuyền và yêu cầu chứng chỉ cho từng công đoạn.
+
 | Cài đặt | Khi bật | Mã lỗi |
 |---|---|---|
 | `skill_enforced` | 上工 công đoạn có `requires_skill` cần chứng chỉ còn hạn | `SKILL` |
@@ -49,4 +51,3 @@ Gateway MQTT hoặc OPC-UA chỉ cần chuyển tiếp bản tin sang endpoint n
 - **Phân quyền theo xưởng / chuyền (OPT-14).**
 - **Khóa lệnh dùng chung toàn hệ thống:** vẫn giữ để đảm bảo đúng. Nên đo tải thật trước khi đổi sang khóa theo từng thẻ, từng máy.
 - **Adapter MQTT / OPC-UA chạy sẵn trong hệ thống:** chưa có, hiện nhận qua HTTP.
-- **`docs/implementation/openapi.json`:** giờ được sinh ra khi chạy `scripts/export_openapi.py`. Server đang chạy luôn có `/openapi.json` và `/docs`.

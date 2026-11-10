@@ -343,12 +343,12 @@ function WorkOrders() {
               <>
                 {r.status === "PLANNED" && (
                   <button className="text-button" disabled={cmd.busy} onClick={() => cmd.send(`/work-orders/${r.id}/release`, {})}>
-                    {t("release")}
+                    {t("releaseWo")}
                   </button>
                 )}
                 {r.status !== "CLOSED" && r.status !== "CANCELLED" && (
                   <button className="text-button" onClick={() => setClosing(r)}>
-                    {r.status === "PLANNED" ? t("cancelWo") : t("close")}
+                    {r.status === "PLANNED" ? t("cancelWo") : t("closeWo")}
                   </button>
                 )}
               </>
@@ -376,7 +376,7 @@ function WorkOrders() {
       )}
       {closing && (
         <FormModal
-          title={`${closing.wo_no} · ${t(closing.status === "PLANNED" ? "cancelWo" : "close")}`}
+          title={`${closing.wo_no} · ${t(closing.status === "PLANNED" ? "cancelWo" : "closeWo")}`}
           onClose={() => setClosing(null)}
           fields={[{ name: "reason", required: true, type: "textarea" }]}
           onSubmit={(v, c) => c.send(`/work-orders/${closing.id}/close`, { status: closing.status === "PLANNED" ? "CANCELLED" : "CLOSED", reason: v.reason })}
@@ -885,7 +885,7 @@ function Maintenance() {
             actions={(r) => write && r.status !== "DONE" && (
               <>
                 {r.status === "OPEN" && <button className="text-button" disabled={cmd.busy} onClick={() => cmd.send(`/maintenance-orders/${r.id}`, { action: "start" })}>{t("start")}</button>}
-                <button className="text-button" onClick={() => setForm({ ...r, _finish: true })}>{t("finish")}</button>
+                <button className="text-button" onClick={() => setForm({ ...r, _finish: true })}>{t("finishMaintenance")}</button>
               </>
             )} />
         </section>
@@ -919,7 +919,7 @@ function Maintenance() {
           onSubmit={(v, c) => c.send("/tools", { ...clean(v), life_limit: v.life_limit ? Number(v.life_limit) : undefined })} />
       )}
       {typeof form === "object" && form._finish && (
-        <FormModal title={`${form.mo_no} · ${t("finish")}`} onClose={() => setForm("")}
+        <FormModal title={`${form.mo_no} · ${t("finishMaintenance")}`} onClose={() => setForm("")}
           fields={[{ name: "findings", type: "textarea", required: true }, { name: "parts_used", type: "textarea" },
             { name: "restore_reason_code", type: "select", value: "US_1", options: (catalog.equipment_reasons || []).filter((r: Row) => r.state === "ENABLED" && r.code !== "UP").map((r: Row) => [r.code, `${r.code} · ${r.name}`]) }]}
           onSubmit={(v, c) => c.send(`/maintenance-orders/${form.id}`, { action: "finish", findings: v.findings, parts_used: v.parts_used || undefined, restore_reason_code: v.restore_reason_code || null })} />
@@ -994,7 +994,7 @@ function Documents() {
           actions={(r) => (
             <>
               <button className="text-button" onClick={() => openFile(`/documents/${r.id}/file`).catch((e) => setErr(e.message))}>{t("open")}</button>
-              {write && r.status === "DRAFT" && <button className="text-button" disabled={cmd.busy} onClick={() => cmd.send(`/documents/${r.id}/release`, {})}>{t("release")}</button>}
+              {write && r.status === "DRAFT" && <button className="text-button" disabled={cmd.busy} onClick={() => cmd.send(`/documents/${r.id}/release`, {})}>{t("publishSop")}</button>}
             </>
           )} />
       </section>

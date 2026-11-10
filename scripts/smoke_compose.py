@@ -25,5 +25,8 @@ cards = json.loads(request('/api/cards', token=session['token']))
 assert cards['total'] == 3
 catalog = json.loads(request('/api/catalog', token=session['token']))
 assert len(catalog['equipments']) == 6 and len(catalog['route_nodes']) == 7
-assert json.loads(request('/openapi.json'))['info']['title'] == 'RunCard MES'
-print('Compose smoke test passed: health, both apps, admin login, 3 cards, 6 machines, 7 nodes, OpenAPI.')
+assert json.loads(request('/api/work-orders', token=session['token'])) == []
+assert len(json.loads(request('/api/lots', token=session['token']))) == 4
+schema = json.loads(request('/openapi.json'))
+assert schema['info']['title'] == 'RunCard MES' and '/api/work-orders' in schema['paths']
+print('Compose smoke test passed: both apps, admin login, RunCard data, work orders, material lots and OpenAPI.')

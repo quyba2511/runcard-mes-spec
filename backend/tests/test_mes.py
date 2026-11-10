@@ -1,8 +1,47 @@
 """Extended MES functions (db/003_mes_extensions.sql + app/mes.py). Same expendable-database rule as test_integration."""
 from uuid import uuid4
+import os
+import pytest
+from fastapi.testclient import TestClient
 from app.db import connection, one, all_rows
+from app.main import app, attempts
 from app.mes import format_outbox, pm_tick
-from test_integration import setup_db, client, headers, post, start, finish, pytestmark  # noqa: F401  (fixtures)
+from app.security import hash_password
+from test_integration import ROOT, setup_db, client, headers, post, start, finish, pytestmark  # noqa: F401  (fixtures)
+
+
+@pytest.mark.parametrize('already_extended', [False, True])
+def test_startup_preserves_existing_database(monkeypatch, already_extended):
+    monkeypatch.setenv('DATABASE_URL', os.environ['TEST_DATABASE_URL'])
+    monkeypatch.setenv('SEED_DEMO_ACCOUNTS', 'true')
+    monkeypatch.setenv('DEMO_ADMIN_PASSWORD', 'unused-seed-password')
+    attempts.clear()
+    with connection() as db:
+        db.execute('DROP SCHEMA public CASCADE; CREATE SCHEMA public')
+        for name in ['schema.sql', 'seed_demo.sql', '002_runtime.sql']:
+            db.execute((ROOT / 'db' / name).read_text())
+        db.execute("INSERT INTO app_settings VALUES ('bootstrapped','true')")
+        role = one(db, "SELECT id FROM roles WHERE code='admin'")
+        db.execute("INSERT INTO permissions(code,description) VALUES ('backend:access','Backend access')")
+        db.execute("INSERT INTO role_permissions VALUES (%s,'backend:access')", (role['id'],))
+        db.execute("INSERT INTO accounts(username,display_name,role_id,password_hash) VALUES ('admin','Existing admin',%s,%s)",
+                   (role['id'], hash_password('existing-admin-password')))
+        original = one(db, """INSERT INTO run_cards(card_no,unit,route_free,original_qty,current_qty)
+                             VALUES ('EXISTING','pcs',true,42,42) RETURNING id""")
+        if already_extended:
+            db.execute((ROOT / 'db' / '003_mes_extensions.sql').read_text())
+
+    for _ in range(2):
+        with TestClient(app) as running:
+            login = running.post('/api/auth/login', json={'username': 'admin', 'password': 'existing-admin-password'})
+            assert login.status_code == 200, login.text
+            auth = {'Authorization': 'Bearer ' + login.json()['token']}
+            cards = running.get('/api/cards', headers=auth).json()
+            assert cards['total'] == 1
+            assert cards['items'][0]['id'] == str(original['id'])
+            assert float(cards['items'][0]['current_qty']) == 42
+            assert running.get('/api/work-orders', headers=auth).json() == []
+            assert len(running.get('/api/lots', headers=auth).json()) == 4
 
 
 def get(client, s, path, user='admin', expected=200):
@@ -85,7 +124,17 @@ def test_material_issue_gate_and_traceability(client, setup_db):
 def test_first_article_and_skill_gates(client, setup_db):
     s = setup_db
     put(client, s, '/mes/settings', {'fai_enforced': True, 'skill_enforced': True})
-    sql("UPDATE operations SET requires_first_article=true, requires_skill=true WHERE code='DEMO_PRT'")
+    catalog = get(client, s, '/catalog')
+    operation = next(op for op in catalog['operations'] if op['code'] == 'DEMO_PRT')
+    qc_items = [{key: row[key] for key in ('id', 'name', 'unit', 'lower_limit', 'upper_limit')}
+                for row in catalog['operation_qc_items'] if row['operation_id'] == operation['id']]
+    config = {'code': operation['code'], 'name': operation['name'], 'qc_items': qc_items,
+              'defect_code_ids': [row['defect_code_id'] for row in catalog['operation_defect_codes']
+                                  if row['operation_id'] == operation['id']]}
+    path = '/operations/DEMO_PRT'
+    put(client, s, path, {**config, 'requires_first_article': True, 'requires_skill': True, 'std_cycle_sec': 24})
+    edited = put(client, s, path, config)
+    assert edited['requires_first_article'] and edited['requires_skill'] and float(edited['std_cycle_sec']) == 24
     c = s['cards'][0]
     body = {'version': c['version'], 'equipment_id': eq_id(s)}
     assert client.post(f"/api/cards/{c['id']}/check-in", json=body, headers=headers(s)).json()['code'] == 'SKILL'
