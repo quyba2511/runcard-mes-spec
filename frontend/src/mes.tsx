@@ -125,8 +125,12 @@ function useCmd() {
 const can = (actor: Row, p: string) => actor?.permissions?.includes(p);
 
 function Err({ error }: { error?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [error]);
   return error ? (
-    <div className="error" role="alert">
+    <div className="error" role="alert" ref={ref}>
       <TriangleAlert size={18} />
       {error}
     </div>
@@ -261,8 +265,8 @@ function FormModal({ title, fields, onClose, onSubmit }: { title: string; fields
       onClose={onClose}
       footer={
         <>
-          <button className="secondary" onClick={onClose}>
-            {t("cancel")}
+          <button type="button" className="secondary" onClick={onClose}>
+            {t("dismiss")}
           </button>
           <button className="primary" form="mes-form" disabled={cmd.busy}>
             {t("save")}
@@ -954,7 +958,7 @@ function People() {
       {tab === "skills" && (
         <section className="panel">
           <Table rows={skills.data} cols={["employee_no", "display_name", "operation_code", "operation_name", "level", "certified_at", "expires_at", "expired"]}
-            actions={(r) => write && <button className="text-button" disabled={cmd.busy} onClick={() => cmd.send("/skills", { employee_no: r.employee_no, operation_code: r.operation_code, remove: true })}>{t("delete") === "delete" ? "✕" : t("delete")}</button>} />
+            actions={(r) => write && <button className="text-button" disabled={cmd.busy} onClick={() => cmd.send("/skills", { employee_no: r.employee_no, operation_code: r.operation_code, remove: true })}>{t("delete")}</button>} />
         </section>
       )}
       {tab === "shifts" && <section className="panel"><Table rows={shifts.data?.shifts || null} cols={["code", "name", "start_time", "end_time", "is_active"]} /></section>}
@@ -1053,6 +1057,7 @@ function Integration() {
             ))}
             <div className="kpi"><div>{t("erp_format")}</div><strong>{rec.data.format}</strong></div>
           </div>
+          <p className="muted">{t("outboxHint")}</p>
           <section className="panel"><div className="panel-heading"><h2>Outbox · {t("FAILED")}</h2></div><Table rows={rec.data.failed} cols={["id", "event_type", "attempts", "last_error", "created_at"]} /></section>
           <section className="panel"><div className="panel-heading"><h2>ERP → MES</h2></div><Table rows={rec.data.inbound} cols={["kind", "status", "n"]} /><Table rows={rec.data.rejected} cols={["kind", "external_id", "error", "at"]} /></section>
         </>
@@ -1074,6 +1079,7 @@ function Integration() {
               </select>
             </label>
           </div>
+          <p className="muted">{t("gatesHint")}</p>
           {write && <button className="primary" disabled={cmd.busy} onClick={() => cmd.send("/mes/settings", draft, "PUT")}>{t("save")}</button>}
         </section>
       )}
