@@ -32,6 +32,10 @@ Tất cả mặc định **tắt**, nên quy tắc BR-01…BR-24 không đổi c
 | `material_enforced` | 下工 cần cấp đủ vật tư theo BOM của công đoạn (định mức × đầu vào) | `MATERIAL` |
 | (luôn bật) | Dụng cụ đang lắp đã hết tuổi thọ thì chặn 上工 | `TOOL_LIFE` |
 
+Hai cổng `SKILL` và `FIRST_ARTICLE` chỉ có tác dụng ở công đoạn đã bật cờ tương ứng. Bật ở **Cấu hình → Công đoạn**, ô "Yêu cầu chứng chỉ tay nghề" / "Yêu cầu duyệt 首件" (API: `PUT /api/operations/{code}` với `requires_skill`, `requires_first_article`; bỏ trống hai trường này thì giữ nguyên giá trị cũ).
+
+Giá trị `counter`, `good`, `scrap` từ PLC phải ≥ 0, nếu không API trả 422.
+
 ## Gửi dữ liệu từ PLC (ví dụ)
 
 ```bash

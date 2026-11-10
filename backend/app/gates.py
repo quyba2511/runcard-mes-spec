@@ -53,12 +53,12 @@ def precheck(db, actor, card, action, ctx, kind):
                 shift = current_shift(db)
                 fai = one(db, "SELECT 1 FROM first_article_checks WHERE equipment_id=%s AND operation_id=%s AND result='PASS' AND approved_at>=%s",
                           (equipment['id'], op['id'], shift['started_at']))
-                require(fai, 'FIRST_ARTICLE', 'Cần kiểm đầu chuyền (首件) đạt và được duyệt trong ca này')
+                require(fai, 'FIRST_ARTICLE', 'Cần kiểm đầu chuyền (首件) đạt và được duyệt trong ca này / 本班首件須合格並經核准')
             if setting(db, 'pm_block_overdue'):
                 overdue = one(db, 'SELECT name FROM pm_plans WHERE equipment_id=%s AND is_active AND next_due_at<now() LIMIT 1', (equipment['id'],))
                 require(not overdue, 'PM_OVERDUE', 'Máy đã quá hạn bảo dưỡng định kỳ / 設備保養逾期')
             worn = one(db, "SELECT code FROM tools WHERE equipment_id=%s AND status='MOUNTED' AND life_limit IS NOT NULL AND used>=life_limit LIMIT 1", (equipment['id'],))
-            require(not worn, 'TOOL_LIFE', f"Dụng cụ {worn['code'] if worn else ''} đã hết tuổi thọ / 治具壽命已到")
+            require(not worn, 'TOOL_LIFE', f"Dụng cụ {worn['code'] if worn else ''} đã hết tuổi thọ / 治具 {worn['code'] if worn else ''} 壽命已到")
     if finish and setting(db, 'material_enforced') and ctx.get('open_record'):
         record = ctx['open_record']
         missing = one(db, '''SELECT m.code, l.qty_per*%s AS need, COALESCE(SUM(c.qty),0) AS got
@@ -67,7 +67,7 @@ def precheck(db, actor, card, action, ctx, kind):
             WHERE b.item_no=%s AND b.status='ACTIVE' AND l.operation_id=%s
             GROUP BY m.code,l.qty_per HAVING COALESCE(SUM(c.qty),0) < l.qty_per*%s LIMIT 1''',
                       (record['input_qty'], record['id'], card['item_no'], record['operation_id'], record['input_qty']))
-        require(not missing, 'MATERIAL', f"Chưa cấp đủ vật tư {missing['code'] if missing else ''} theo BOM / 物料未依 BOM 投料")
+        require(not missing, 'MATERIAL', f"Chưa cấp đủ vật tư {missing['code'] if missing else ''} theo BOM / 物料 {missing['code'] if missing else ''} 未依 BOM 投料")
 
 
 def after_action(db, actor, before, stored, kind, record_id):
