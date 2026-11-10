@@ -1,5 +1,15 @@
 // Labels for the extended MES pages (Tiếng Việt, 繁體中文).
 export const mesMessages: Record<string, [string, string]> = {
+  dismiss: ["Bỏ qua", "取消"],
+  delete: ["Xóa", "刪除"],
+  gatesHint: [
+    "Cổng Kỹ năng và 首件 chỉ chặn ở những công đoạn đã tích \"Yêu cầu chứng chỉ tay nghề\" / \"Yêu cầu duyệt 首件\" trong Cấu hình → Công đoạn. Cổng tuổi thọ dụng cụ luôn bật.",
+    "技能與首件管制僅對在「系統設定 → 工序」勾選「需技能資格」/「需首件核准」的工序生效。治具壽命管制永遠啟用。",
+  ],
+  outboxHint: [
+    "Chưa cấu hình ERP_WEBHOOK_URL thì các sự kiện nằm ở trạng thái Chờ gửi và sẽ được gửi khi cấu hình. Đây là hành vi bình thường.",
+    "未設定 ERP_WEBHOOK_URL 時，事件會保留在「待送出」，設定後才會傳送，屬正常現象。",
+  ],
   workorders: ["Lệnh sản xuất", "工單管理"],
   traceGo: ["Truy xuất", "追溯"],
   schedule: ["Điều độ", "生產排程"],
@@ -92,6 +102,15 @@ export const mesMessages: Record<string, [string, string]> = {
   telemetry: ["Tín hiệu máy", "機台訊號"],
 };
 export const mesColumns: Record<string, [string, string]> = {
+  "work_order_no": ["Số lệnh", "工單號"],
+  "value": ["Giá trị đo", "量測值"],
+  "counter": ["Bộ đếm máy", "機台計數"],
+  "scrap": ["SL phế (máy)", "報廢數（機台）"],
+  "lot_size": ["SL mỗi thẻ", "每卡數量"],
+  "owner_username": ["Người phụ trách", "負責人"],
+  "restore_reason_code": ["Trạng thái máy sau sửa", "修復後設備狀態"],
+  "equipment_mes_code": ["Máy", "設備"],
+  "file": ["Tệp", "檔案"],
   "status": ["Trạng thái", "狀態"],
   "wo_no": ["Số lệnh", "工單號"],
   "item_no": ["Mã SP", "品號"],

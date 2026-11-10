@@ -168,6 +168,8 @@ export const messages: Record<string, [string, string]> = {
   off: ["Chưa bật", "未開機"],
   target: ["Trạm bắt đầu", "起始工序"],
   needsEquipment: ["Yêu cầu máy", "需要設備"],
+  needsSkill: ["Yêu cầu chứng chỉ tay nghề (khi bật cổng Kỹ năng)", "需技能資格（啟用技能管制時）"],
+  needsFirstArticle: ["Yêu cầu duyệt 首件 (khi bật cổng 首件)", "需首件核准（啟用首件管制時）"],
   permission: ["Quyền", "權限"],
   active: ["Đang dùng", "啟用"],
   location: ["Vị trí", "位置"],
@@ -208,4 +210,66 @@ export const statusLabels: Record<string, [string, string]> = {
 };
 export function translate(key: string, lang: Lang) {
   return (messages[key] || statusLabels[key])?.[lang === "vi" ? 0 : 1] || key;
+}
+
+// Server error codes → localized headline. The server detail is still shown (it names the card, tool, field…),
+// but a bilingual detail "vi / 中文" is cut to the current language and an English-only detail gets a localized prefix.
+const errorLabels: Record<string, [string, string]> = {
+  VALIDATION: ["Dữ liệu nhập chưa hợp lệ ở ô", "輸入資料有誤，欄位"],
+  NOT_FOUND: ["Không tìm thấy dữ liệu", "查無資料"],
+  UNAUTHORIZED: ["Chưa đăng nhập hoặc phiên đã hết hạn", "尚未登入或工作階段已過期"],
+  FORBIDDEN: ["Tài khoản không có quyền thực hiện thao tác này", "此帳號無權執行此操作"],
+  CONSTRAINT: ["Dữ liệu bị trùng hoặc vi phạm ràng buộc, hãy làm mới và kiểm tra", "資料重複或違反限制，請重新整理後確認"],
+  IDEMPOTENCY_CONFLICT: ["Yêu cầu đã gửi với nội dung khác, hãy thử lại", "重複送出的內容不同，請重試"],
+  RULE: ["Vi phạm quy tắc nghiệp vụ", "違反作業規則"],
+  ACCOUNT: ["Lỗi tài khoản", "帳號錯誤"],
+  ACTION: ["Thao tác không hợp lệ", "操作無效"],
+  AMBIGUOUS_SCAN: ["Mã quét khớp nhiều đối tượng", "掃描條碼對應多筆資料"],
+  BOM: ["Lỗi BOM", "BOM 錯誤"],
+  CARD: ["Lỗi thẻ", "卡片錯誤"],
+  DEVICE: ["Lỗi thiết bị kết nối", "連線裝置錯誤"],
+  DOCUMENT: ["Lỗi tài liệu", "文件錯誤"],
+  EQUIPMENT: ["Lỗi máy", "設備錯誤"],
+  EQUIPMENT_REASON: ["Mã trạng thái máy không hợp lệ", "設備狀態代碼無效"],
+  IMPORT: ["Lỗi nhập file", "匯入錯誤"],
+  LOT: ["Lỗi lô vật tư", "物料批號錯誤"],
+  MACHINE: ["Lỗi dữ liệu máy", "機台資料錯誤"],
+  MAINTENANCE: ["Lỗi phiếu bảo trì", "保養單錯誤"],
+  MATERIAL: ["Lỗi vật tư", "物料錯誤"],
+  NCR: ["Lỗi NCR", "NCR 錯誤"],
+  OPERATION: ["Lỗi công đoạn", "工序錯誤"],
+  OPERATION_SCAN: ["Mã công đoạn không khớp", "工序條碼不符"],
+  PASSWORD: ["Mật khẩu không hợp lệ", "密碼無效"],
+  QC: ["Lỗi hạng mục kiểm tra", "檢驗項目錯誤"],
+  QC_HISTORY: ["Không được xóa hạng mục kiểm tra đã có lịch sử", "已有紀錄的檢驗項目不可刪除"],
+  QC_REQUIRED: ["Thiếu kết quả kiểm tra", "缺少檢驗結果"],
+  QUANTITY: ["Số lượng không hợp lệ", "數量無效"],
+  RANGE: ["Khoảng thời gian không hợp lệ", "時間範圍無效"],
+  REASON_REQUIRED: ["Cần nhập lý do", "請填寫原因"],
+  ROLE: ["Lỗi vai trò", "角色錯誤"],
+  ROUTE: ["Lỗi tuyến", "路線錯誤"],
+  SERIAL: ["Lỗi số serial", "序號錯誤"],
+  STATE: ["Trạng thái hiện tại không cho phép thao tác này", "目前狀態不允許此操作"],
+  TOOL: ["Lỗi dụng cụ / khuôn", "治具錯誤"],
+  UNIT: ["Lỗi đơn vị", "單位錯誤"],
+  WORK_ORDER: ["Lỗi lệnh sản xuất", "工單錯誤"],
+  WORK_TIME: ["Thời gian làm việc không hợp lệ", "工時無效"],
+};
+const CJK = /[㐀-鿿]/;
+const VI = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+export function localizeError(code: string, detail: string, fields: string[], lang: Lang) {
+  const i = lang === "vi" ? 0 : 1;
+  if (code === "VALIDATION") {
+    const names = fields.map((f) => {
+      const k = f.split(".").filter((x) => !/^\d+$/.test(x)).pop() || f;
+      return translate(k, lang);
+    });
+    return `${errorLabels.VALIDATION[i]}: ${names.join(", ")}`;
+  }
+  const parts = detail.split(" / ");
+  if (parts.length === 2 && VI.test(parts[0]) && CJK.test(parts[1])) return parts[i].trim();
+  if (CJK.test(detail) || VI.test(detail)) return detail; // already written for operators
+  const label = errorLabels[code] || (/^(BR|OPT)-\d+/.test(code) ? errorLabels.RULE : null);
+  if (!label) return detail;
+  return `${label[i]}${/^(BR|OPT)-/.test(code) ? " " + code : ""}: ${detail}`;
 }

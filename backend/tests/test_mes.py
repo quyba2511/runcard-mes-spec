@@ -85,7 +85,14 @@ def test_material_issue_gate_and_traceability(client, setup_db):
 def test_first_article_and_skill_gates(client, setup_db):
     s = setup_db
     put(client, s, '/mes/settings', {'fai_enforced': True, 'skill_enforced': True})
-    sql("UPDATE operations SET requires_first_article=true, requires_skill=true WHERE code='DEMO_PRT'")
+    cat = get(client, s, '/catalog')
+    op = next(o for o in cat['operations'] if o['code'] == 'DEMO_PRT')
+    base = {'code': 'DEMO_PRT', 'name': op['name'], 'requires_equipment': op['requires_equipment'], 'is_active': True,
+            'defect_code_ids': [d['defect_code_id'] for d in cat['operation_defect_codes'] if d['operation_id'] == op['id']],
+            'qc_items': [{k: q[k] for k in ('id', 'name', 'unit', 'lower_limit', 'upper_limit')} for q in cat['operation_qc_items'] if q['operation_id'] == op['id']]}
+    saved = put(client, s, '/operations/DEMO_PRT', {**base, 'requires_first_article': True, 'requires_skill': True})
+    assert saved['requires_skill'] and saved['requires_first_article']
+    assert put(client, s, '/operations/DEMO_PRT', base)['requires_skill'], 'client cũ không gửi cờ thì phải giữ nguyên'
     c = s['cards'][0]
     body = {'version': c['version'], 'equipment_id': eq_id(s)}
     assert client.post(f"/api/cards/{c['id']}/check-in", json=body, headers=headers(s)).json()['code'] == 'SKILL'
@@ -112,6 +119,9 @@ def test_breakdown_opens_maintenance_order_and_mttr(client, setup_db):
     assert len(mo) == 1 and mo[0]['kind'] == 'BREAKDOWN' and mo[0]['reason_code'] == 'DU_1'
     post(client, s, f"/maintenance-orders/{mo[0]['id']}", {'action': 'finish'}, 'admin', expected=422)
     post(client, s, f"/maintenance-orders/{mo[0]['id']}", {'action': 'start'}, 'admin')
+    first = one_val('SELECT started_at FROM maintenance_orders WHERE id=%s', (mo[0]['id'],))
+    post(client, s, f"/maintenance-orders/{mo[0]['id']}", {'action': 'start'}, 'admin')
+    assert one_val('SELECT started_at FROM maintenance_orders WHERE id=%s', (mo[0]['id'],)) == first, 'bắt đầu lại không được ghi đè mốc đầu'
     post(client, s, f"/maintenance-orders/{mo[0]['id']}", {'action': 'finish', 'findings': 'Thay motor', 'parts_used': 'Motor x1'}, 'admin')
     assert one_val('SELECT reason_code FROM equipments WHERE id=%s', (s['equipment']['id'],)) == 'US_1'
     rep = get(client, s, '/reports/maintenance')
@@ -192,6 +202,7 @@ def test_devices_machine_and_erp(client, setup_db):
         assert client.post('/api/machine/telemetry', json={'state': state, 'counter': cnt}, headers={'X-Device-Token': m['token']}).status_code == 200
     assert one_val("SELECT count(*) FROM notification_jobs WHERE event_code='EQUIPMENT_ABNORMAL'") == 1
     assert client.post('/api/machine/telemetry', json={'state': 'RUN'}, headers={'X-Device-Token': 'nope'}).status_code == 401
+    assert client.post('/api/machine/telemetry', json={'counter': -5}, headers={'X-Device-Token': m['token']}).status_code == 422
     erp = post(client, s, '/devices', {'name': 'SAP', 'kind': 'ERP'}, 'admin')
     eh = {'X-Device-Token': erp['token']}
     wo = {'external_id': 'SAP-1', 'wo_no': 'WO-ERP-1', 'item_no': 'PCBA-001', 'planned_qty': 40}
