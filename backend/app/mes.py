@@ -799,7 +799,7 @@ def step_maintenance(mo_id: int, body: MaintenanceStep, a: Actor, key: Key):
         m = one(db, 'SELECT * FROM maintenance_orders WHERE id=%s FOR UPDATE', (mo_id,))
         require(m and m['status'] != 'DONE', 'MAINTENANCE', 'Order not found or already done')
         if body.action == 'start':
-            m = one(db, "UPDATE maintenance_orders SET status='IN_PROGRESS', started_at=now(), assigned_to=%s WHERE id=%s RETURNING *", (a['id'], mo_id))
+            m = one(db, "UPDATE maintenance_orders SET status='IN_PROGRESS', started_at=COALESCE(started_at,now()), assigned_to=%s WHERE id=%s RETURNING *", (a['id'], mo_id))
         else:
             require(body.findings, 'MAINTENANCE', 'Findings are required to finish')
             m = one(db, "UPDATE maintenance_orders SET status='DONE', finished_at=now(), started_at=COALESCE(started_at,now()), findings=%s, parts_used=%s, assigned_to=COALESCE(assigned_to,%s) WHERE id=%s RETURNING *",
@@ -1075,9 +1075,9 @@ def revoke_device(device_id: int, a: Actor, key: Key):
 
 class Telemetry(Strict):
     state: Literal['RUN', 'IDLE', 'DOWN', 'OFF'] | None = None
-    counter: Decimal | None = None
-    good: Decimal | None = None
-    scrap: Decimal | None = None
+    counter: Decimal | None = Field(default=None, ge=0)
+    good: Decimal | None = Field(default=None, ge=0)
+    scrap: Decimal | None = Field(default=None, ge=0)
     params: dict = Field(default_factory=dict)
 
 

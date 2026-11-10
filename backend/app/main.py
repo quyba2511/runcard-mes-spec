@@ -381,6 +381,9 @@ class OperationInput(Strict):
     name:str=Field(min_length=1)
     requires_equipment:bool=True
     is_active:bool=True
+    # None = giữ nguyên giá trị hiện có (client cũ không gửi hai cờ này)
+    requires_skill:bool|None=None
+    requires_first_article:bool|None=None
     defect_code_ids:list[int]=Field(default_factory=list)
     qc_items:list[dict]=Field(default_factory=list)
 
@@ -392,7 +395,10 @@ def save_operation(code:str,body:OperationInput,a:Actor,idempotency_key:Key):
         old=one(db,'SELECT * FROM operations WHERE code=%s',(code,))
         if old:
             require(not one(db,'SELECT 1 FROM work_records WHERE operation_id=%s AND ended_at IS NULL AND revoked_at IS NULL',(old['id'],)),'OPERATION','Cannot change operation configuration during active work')
-        o=one(db,'INSERT INTO operations(code,name,requires_equipment,is_active) VALUES(%s,%s,%s,%s) ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,requires_equipment=EXCLUDED.requires_equipment,is_active=EXCLUDED.is_active RETURNING *',(code,body.name,body.requires_equipment,body.is_active))
+        o=one(db,'''INSERT INTO operations(code,name,requires_equipment,is_active,requires_skill,requires_first_article) VALUES(%(code)s,%(name)s,%(eq)s,%(active)s,COALESCE(%(skill)s,false),COALESCE(%(fai)s,false))
+                     ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,requires_equipment=EXCLUDED.requires_equipment,is_active=EXCLUDED.is_active,
+                     requires_skill=COALESCE(%(skill)s,operations.requires_skill),requires_first_article=COALESCE(%(fai)s,operations.requires_first_article) RETURNING *''',
+              {'code':code,'name':body.name,'eq':body.requires_equipment,'active':body.is_active,'skill':body.requires_skill,'fai':body.requires_first_article})
         db.execute('DELETE FROM operation_defect_codes WHERE operation_id=%s',(o['id'],))
         for d in set(body.defect_code_ids): db.execute('INSERT INTO operation_defect_codes VALUES(%s,%s)',(o['id'],d))
         existing={q['id'] for q in all_rows(db,'SELECT id FROM operation_qc_items WHERE operation_id=%s',(o['id'],))}
