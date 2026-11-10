@@ -383,16 +383,27 @@ class OperationInput(Strict):
     is_active:bool=True
     defect_code_ids:list[int]=Field(default_factory=list)
     qc_items:list[dict]=Field(default_factory=list)
+    std_cycle_sec:Decimal|None=Field(default=None,gt=0)
+    requires_first_article:bool=False
+    requires_skill:bool=False
 
 @app.put('/api/operations/{code}',tags=['admin'])
 def save_operation(code:str,body:OperationInput,a:Actor,idempotency_key:Key):
     admin(a,'operations:manage')
     require(code==body.code,'OPERATION','Code mismatch')
+    extension_fields = ('std_cycle_sec', 'requires_first_article', 'requires_skill')
+    omitted = set(extension_fields) - body.model_fields_set
+    payload = body.model_dump(exclude=omitted)
     def execute(db):
         old=one(db,'SELECT * FROM operations WHERE code=%s',(code,))
         if old:
             require(not one(db,'SELECT 1 FROM work_records WHERE operation_id=%s AND ended_at IS NULL AND revoked_at IS NULL',(old['id'],)),'OPERATION','Cannot change operation configuration during active work')
-        o=one(db,'INSERT INTO operations(code,name,requires_equipment,is_active) VALUES(%s,%s,%s,%s) ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,requires_equipment=EXCLUDED.requires_equipment,is_active=EXCLUDED.is_active RETURNING *',(code,body.name,body.requires_equipment,body.is_active))
+        extra = [old[field] if old and field in omitted else getattr(body, field) for field in extension_fields]
+        o = one(db, '''INSERT INTO operations(code,name,requires_equipment,is_active,std_cycle_sec,requires_first_article,requires_skill)
+            VALUES(%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,
+            requires_equipment=EXCLUDED.requires_equipment,is_active=EXCLUDED.is_active,std_cycle_sec=EXCLUDED.std_cycle_sec,
+            requires_first_article=EXCLUDED.requires_first_article,requires_skill=EXCLUDED.requires_skill RETURNING *''',
+            (code, body.name, body.requires_equipment, body.is_active, *extra))
         db.execute('DELETE FROM operation_defect_codes WHERE operation_id=%s',(o['id'],))
         for d in set(body.defect_code_ids): db.execute('INSERT INTO operation_defect_codes VALUES(%s,%s)',(o['id'],d))
         existing={q['id'] for q in all_rows(db,'SELECT id FROM operation_qc_items WHERE operation_id=%s',(o['id'],))}
@@ -405,9 +416,9 @@ def save_operation(code:str,body:OperationInput,a:Actor,idempotency_key:Key):
                 require(q['id'] in existing,'QC','QC item belongs to another operation')
                 db.execute('UPDATE operation_qc_items SET name=%s,unit=%s,lower_limit=%s,upper_limit=%s WHERE id=%s',(q['name'],q.get('unit'),q.get('lower_limit'),q.get('upper_limit'),q['id']))
             else: db.execute('INSERT INTO operation_qc_items(operation_id,name,unit,lower_limit,upper_limit) VALUES(%s,%s,%s,%s,%s)',(o['id'],q['name'],q.get('unit'),q.get('lower_limit'),q.get('upper_limit')))
-        audit(db,a,'save-operation',payload=body.model_dump())
+        audit(db,a,'save-operation',payload=payload)
         return o
-    with connection() as db: return run_command(db,a,idempotency_key,{'operation':body.model_dump()},lambda:execute(db))
+    with connection() as db: return run_command(db,a,idempotency_key,{'operation':payload},lambda:execute(db))
 
 class DefectCodeInput(Strict):
     name:str=Field(min_length=1)

@@ -1,5 +1,9 @@
 export type Lang = "vi" | "zh";
 export const messages: Record<string, [string, string]> = {
+  standardCycle: ["Chu kỳ chuẩn (giây / đơn vị)", "標準週期（秒／單位）"],
+  needsFirstArticle: ["Yêu cầu kiểm đầu chuyền", "需要首件檢查"],
+  needsSkill: ["Yêu cầu chứng chỉ tay nghề", "需要作業資格"],
+  equipmentUnderMaintenance: ["Bảo trì", "維修中"],
   brand: ["Điều hành sản xuất", "製造執行系統"],
   overview: ["Tổng quan", "生產總覽"],
   cards: ["RunCard", "RunCard 管理"],

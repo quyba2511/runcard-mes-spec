@@ -841,7 +841,7 @@ function Dashboard() {
             <b>{count("COMPLETED")}</b>
           </div>
           <div className="pulse-stat">
-            <span>{t("maintenance")}</span>
+            <span>{t("equipmentUnderMaintenance")}</span>
             <b>
               {
                 data.equipments.filter((e: Row) => e.state === "MAINTENANCE")
@@ -2857,6 +2857,9 @@ function ConfigModal({
       code: "",
       name: "",
       requires_equipment: true,
+      std_cycle_sec: null,
+      requires_first_article: false,
+      requires_skill: false,
       is_active: true,
       defect_code_ids: [],
       qc_items: [],
@@ -2991,6 +2994,7 @@ function ConfigModal({
     }
     if (kind === "roles") path = "/roles/" + encodeURIComponent(form.code);
     if (kind === "operations") {
+      body.std_cycle_sec = body.std_cycle_sec || null;
       body.qc_items = body.qc_items.map((q: Row) => ({
         ...q,
         lower_limit: q.lower_limit === "" ? null : q.lower_limit,
@@ -3072,6 +3076,9 @@ function ConfigModal({
         {kind === "operations" && (
           <>
             {check("requires_equipment", "needsEquipment")}
+            {textField("std_cycle_sec", "standardCycle", false)}
+            {check("requires_first_article", "needsFirstArticle")}
+            {check("requires_skill", "needsSkill")}
             {check("is_active", "active")}
             {multi("defect_code_ids", "defectCodes", catalog.defect_codes)}
             <div className="wide">

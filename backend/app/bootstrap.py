@@ -1,5 +1,6 @@
-"""Runtime demo identities; passwords come from environment, never from SQL seeds."""
+"""Apply runtime migrations and initialize demo identities on first startup."""
 import os
+from pathlib import Path
 from .db import connection, one, lock
 from .security import PERMISSIONS, hash_password
 
@@ -9,9 +10,25 @@ EVENTS = {'TEMPORARY_OPERATION':'臨時工序放行','DEFECT_CREATED':'瑕疵單
  'PM_DUE':'保養到期','NCR_OPENED':'不合格品報告','TOOL_LIFE':'治具壽命到期'}
 
 
+def migrate_extensions(db):
+    if one(db, "SELECT 1 FROM app_settings WHERE key='migration_003'"):
+        return
+    # Older builds ran the extension script through PostgreSQL's init directory.
+    if not one(db, """SELECT 1 FROM app_settings WHERE key='erp_format'
+                      AND to_regclass('public.erp_inbound_log') IS NOT NULL"""):
+        backend_dir = Path(__file__).resolve().parents[1]
+        filename = '003_mes_extensions.sql'
+        migration = backend_dir / 'db' / filename
+        if not migration.is_file():
+            migration = backend_dir.parent / 'db' / filename
+        db.execute(migration.read_text(encoding='utf-8'))
+    db.execute("INSERT INTO app_settings VALUES('migration_003','true')")
+
+
 def bootstrap():
     with connection() as db:
         lock(db)
+        migrate_extensions(db)
         for p in PERMISSIONS:
             db.execute('INSERT INTO permissions(code,description) VALUES(%s,%s) ON CONFLICT DO NOTHING', (p,p))
         standard = ['backend:access','equipment_status:set','quality:judge','work_records:abnormal_end','work_records:backfill']

@@ -10,7 +10,6 @@ services:
       - ./db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
       - ./db/seed_demo.sql:/docker-entrypoint-initdb.d/002_seed.sql:ro
       - ./db/002_runtime.sql:/docker-entrypoint-initdb.d/003_runtime.sql:ro
-      - ./db/003_mes_extensions.sql:/docker-entrypoint-initdb.d/004_mes_extensions.sql:ro
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U mes -d mes']
       interval: 5s

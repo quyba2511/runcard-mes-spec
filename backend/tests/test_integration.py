@@ -21,7 +21,7 @@ def setup_db(monkeypatch):
     monkeypatch.setenv('DEVICE_TOKEN','test-device-token')
     with connection() as db:
         db.execute('DROP SCHEMA public CASCADE; CREATE SCHEMA public')
-        for name in ['schema.sql','seed_demo.sql','002_runtime.sql','003_mes_extensions.sql']:
+        for name in ['schema.sql','seed_demo.sql','002_runtime.sql']:
             db.execute((ROOT/'db'/name).read_text())
     bootstrap()
     attempts.clear()
