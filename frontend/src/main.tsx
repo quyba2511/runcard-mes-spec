@@ -157,8 +157,13 @@ function Modal({
   );
 }
 function ErrorBox({ error }: { error: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Errors often appear at the top of a long form/dialog while the user is at the bottom (tablet): bring it into view.
+  useEffect(() => {
+    if (error) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [error]);
   return error ? (
-    <div className="error" role="alert">
+    <div className="error" role="alert" ref={ref}>
       <TriangleAlert size={18} />
       {error}
     </div>
@@ -257,8 +262,10 @@ function App() {
     const ctl = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const connect = () => {
-      eventStream(refresh, ctl.signal).finally(() => {
-        if (!ctl.signal.aborted) timer = setTimeout(connect, 5000);
+      eventStream(refresh, ctl.signal).then((status) => {
+        if (ctl.signal.aborted) return;
+        if (status === 401) return onAuthError(); // token hết hạn/bị thu hồi: dừng, không thử lại mãi
+        timer = setTimeout(connect, 5000);
       });
     };
     connect();
@@ -2858,6 +2865,8 @@ function ConfigModal({
       name: "",
       requires_equipment: true,
       is_active: true,
+      requires_skill: false,
+      requires_first_article: false,
       defect_code_ids: [],
       qc_items: [],
     },
@@ -3073,6 +3082,8 @@ function ConfigModal({
           <>
             {check("requires_equipment", "needsEquipment")}
             {check("is_active", "active")}
+            {check("requires_skill", "needsSkill")}
+            {check("requires_first_article", "needsFirstArticle")}
             {multi("defect_code_ids", "defectCodes", catalog.defect_codes)}
             <div className="wide">
               <div className="panel-heading">
