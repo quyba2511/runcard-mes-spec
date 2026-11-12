@@ -27,7 +27,9 @@ Tải `.xlsx` theo template (`下載範本`) → `上傳並驗證`. Tất cả t
 - Sinh thẻ `R{YYMM}{seq}`, lưu `重工來源卡`.
 - Mặc định dùng phiên bản tuyến của thẻ gốc. Có thể chọn một phiên bản tuyến đang hoạt động cho thẻ R, rồi chọn công đoạn bắt đầu trên phiên bản đó.
 - Thẻ gốc không có tuyến thì thẻ R mặc định cũng không có tuyến, hoặc có thể chọn một tuyến đang hoạt động.
-- Gốc tăng `累計重工`.
+- **Hoàn tất độc lập** (mặc định): thẻ R hoàn tất và số lượng đạt được tính vào lệnh sản xuất gốc.
+- **Trả số lượng đạt**: giữ thẻ sản xuất tại công đoạn hiện tại khi R đang chạy. Nếu nguồn là phiếu lỗi D, chỉ trả về thẻ đã sinh D khi thẻ đó chưa chạy tiếp sau lần báo công sinh D. Khi R hoàn tất đạt, cộng số lượng đạt vào thẻ sản xuất, trừ khỏi lượng đã phân bổ làm lại hoặc lượng lỗi tương ứng. Thẻ R ghi số lượng đã chuyển và phần lỗi phát sinh.
+- Trong khi chờ trả, mỗi thẻ sản xuất nhận một thẻ R tại một thời điểm. Thẻ R được báo công, giữ chất lượng và xử lý phế theo trạng thái. Chọn hoàn tất độc lập khi cần chia tiếp số lượng R sang các thẻ khác.
 
 ## 臨時工序
 工序 (✓) + 臨時工序原因 (✓). "完成後會回到原本規劃的工藝路線繼續，不影響 RunCard 目前所在節點".

@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from uuid import uuid4
 from .db import all_rows, one, jb, clean, lock
-from .domain import transition, equipment_transition, require, invariant, number, QTY
+from .domain import transition, equipment_transition, require, invariant, number, QTY, TERMINAL
 from .security import ACTION_PERMISSION, allowed, consume_session, digest
 from .bootstrap import EVENTS
 from . import gates
@@ -109,12 +109,65 @@ def set_equipment(db, actor, equipment_id, reason_code, note='', card_id=None, a
     return updated
 
 
+def rework_return_target(db, source):
+    target = source
+    bucket = 'rework_qty'
+    if source['source_type'] == 'DEFECT':
+        target = one(db, 'SELECT * FROM run_cards WHERE id=%s FOR UPDATE', (source['parent_card_id'],))
+        require(target, 'REWORK_RETURN', 'The defect card has no production card to receive the quantity')
+        last = one(db, '''SELECT id FROM work_records WHERE run_card_id=%s AND revoked_at IS NULL
+            ORDER BY started_at DESC, id DESC LIMIT 1''', (target['id'],))
+        require(last and last['id'] == source['origin_record_id'], 'REWORK_RETURN',
+                'The production card has already moved past the defect operation')
+        require(all(source[key] == target[key] for key in ('work_order_id', 'work_order_no', 'item_no', 'unit')),
+                'REWORK_RETURN', 'The production and defect cards must have the same order, item and unit')
+        bucket = 'defect_qty'
+    require(target['status'] in {'WAITING', 'QUALITY_HOLD', 'ABNORMAL'}, 'REWORK_RETURN',
+            'The production card must be waiting, on quality hold or abnormal before it can receive rework')
+    require(not one(db, '''SELECT 1 FROM rework_returns
+        WHERE (target_card_id=%s OR rework_card_id=%s) AND finished_at IS NULL''', (target['id'], target['id'])),
+        'REWORK_RETURN', 'The production card already has an active rework return')
+    return target, bucket
+
+
+def finish_rework_return(db, actor, plan, card):
+    qty = card['current_qty'] if card['status'] == 'COMPLETED' else 0
+    if qty:
+        target = one(db, 'SELECT * FROM run_cards WHERE id=%s FOR UPDATE', (plan['target_card_id'],))
+        bucket = 'defect_qty' if plan['target_bucket'] == 'defect_qty' else 'rework_qty'
+        require(target[bucket] >= qty, 'REWORK_RETURN', 'Return exceeds quantity allocated by the production card')
+        received = one(db, f'''UPDATE run_cards
+            SET current_qty=current_qty+%s, {bucket}={bucket}-%s, status=%s,
+                version=version+1, updated_at=now()
+            WHERE id=%s RETURNING *''', (qty, qty, plan['resume_status'], target['id']))
+        card.update(current_qty=0, transferred_qty=card['transferred_qty']+qty, status='TRANSFERRED')
+        invariant(card)
+        reason = 'Accepted rework returned to production'
+        db.execute('''INSERT INTO quantity_movements(run_card_id,disposition,qty,target_card_id,actor_id,reason)
+            VALUES(%s,'transfer',%s,%s,%s,%s)''', (card['id'], qty, target['id'], actor['id'], reason))
+        audit(db, actor, 'rework-return', target, received, reason,
+              {'rework_card_id': card['id'], 'qty': qty})
+    db.execute('UPDATE rework_returns SET finished_at=now(), received_qty=%s WHERE rework_card_id=%s',
+               (qty, card['id']))
+
+
 def card_action(db, actor, card_id, action):
     kind=action['type']
     if kind in ACTION_PERMISSION:
         allowed(actor,ACTION_PERMISSION[kind])
     card=one(db,'SELECT * FROM run_cards WHERE id=%s FOR UPDATE',(card_id,))
     require(card,'NOT_FOUND','RunCard not found')
+    waiting_for_rework = one(db, '''SELECT c.card_no FROM rework_returns r
+        JOIN run_cards c ON c.id=r.rework_card_id WHERE r.target_card_id=%s AND r.finished_at IS NULL''', (card_id,))
+    if waiting_for_rework:
+        require(False, 'REWORK_PENDING', f"Waiting for rework card {waiting_for_rework['card_no']}")
+    return_plan = one(db, 'SELECT * FROM rework_returns WHERE rework_card_id=%s AND finished_at IS NULL', (card_id,))
+    if return_plan:
+        require(kind not in {'split', 'rework', 'edit'} and not (kind == 'cancel' and action.get('disposition') == 'transfer'),
+                'REWORK_RETURN', 'Finish this rework return before reallocating the card')
+    completion = action.get('rework_completion')
+    require(completion is None or kind == 'rework', 'REWORK_RETURN', 'Completion mode is only available for rework')
+    return_target = rework_return_target(db, card) if completion == 'return_to_source' else None
     ctx=dict(actor)
     ctx['release_reason_required']=one(db,"SELECT value FROM app_settings WHERE key='release_reason_required'")['value']
     opened=one(db,'SELECT * FROM work_records WHERE run_card_id=%s AND ended_at IS NULL AND revoked_at IS NULL',(card_id,))
@@ -170,6 +223,11 @@ def card_action(db, actor, card_id, action):
     gates.precheck(db,actor,card,action,ctx,kind)
     result=transition(card,action,ctx)
     updated=result['card']
+    if return_plan:
+        if updated['current_qty'] == 0 and updated['status'] in {'WAITING', 'QUALITY_HOLD'}:
+            updated['status'] = 'TRANSFERRED'
+        if updated['status'] in TERMINAL:
+            finish_rework_return(db, actor, return_plan, updated)
     # Persist compare-and-swap even though the service lock already serializes commands.
     fields=[k for k in CARD_COLUMNS if k in updated and k not in {'card_no','origin_record_id'}]
     args=[jb(updated[k]) if k=='abnormal_counts' else updated[k] for k in fields]
@@ -206,6 +264,12 @@ def card_action(db, actor, card_id, action):
             values['cancel_reason']=None
             child=insert_card(db,values)
             children.append(child)
+            if source == 'REWORK' and return_target:
+                target, bucket = return_target
+                db.execute('''INSERT INTO rework_returns(rework_card_id,target_card_id,target_bucket,resume_status)
+                    VALUES(%s,%s,%s,%s)''', (child['id'], target['id'], bucket, target['status']))
+                db.execute("UPDATE schedule_slots SET status='CANCELLED' WHERE run_card_id=%s AND status='PLANNED'",
+                           (target['id'],))
             audit(db,actor,'create-child',after=child,reason=action.get('reason'))
             if source=='DEFECT':
                 notify(db,'DEFECT_CREATED',child['id'],body=child['card_no'])

@@ -1414,7 +1414,8 @@ function CardPage({ id, back }: { id: string; back: () => void }) {
     ABNORMAL: admin ? ["release", "scrap", "rework", "revoke"] : [],
     DEFECT_HOLD: admin ? ["scrap", "rework"] : [],
   };
-  const actions = (choices[c.status] || [])
+  const actions = (data.awaiting_rework ? [] : choices[c.status] || [])
+    .filter((k) => !data.rework_return || !["split", "rework", "edit"].includes(k))
     .filter(
       (k) => !permissionMap[k] || actor.permissions.includes(permissionMap[k]),
     )
@@ -1438,6 +1439,24 @@ function CardPage({ id, back }: { id: string; back: () => void }) {
         </button>
       </Title>
       <ErrorBox error={error} />
+      {data.awaiting_rework && (
+        <div className="warning">
+          {t("awaitingRework")}{" "}
+          <button className="text-button" onClick={() => select("runcard", data.awaiting_rework.id)}>
+            {data.awaiting_rework.card_no}
+          </button>
+        </div>
+      )}
+      {data.rework_return && (
+        <div className="info">
+          {t("reworkReturnTarget")}{" "}
+          <button className="text-button" onClick={() => select("runcard", data.rework_return.target_card_id)}>
+            {data.rework_return.target_card_no}
+          </button>
+          {data.rework_return.finished_at &&
+            ` · ${t("reworkReturned")} ${fmt(data.rework_return.received_qty)} ${c.unit}`}
+        </div>
+      )}
       <section className="panel card-summary">
         <QRCode value={"RC:" + c.card_no} />
         <div>
@@ -1631,6 +1650,7 @@ function ActionModal({
     operation_id: "",
     target_node_id: "",
     target_route_version_id: "",
+    rework_completion: kind === "rework" ? "independent" : "",
     operation_code: "",
     disposition: kind === "cancel" ? "scrap" : "keep",
     actual_operator_id: "",
@@ -1780,31 +1800,45 @@ function ActionModal({
           <ErrorBox error={error || scanError} />
         </div>
         {kind === "rework" && (
-          <Field label={t("reworkRoute")} wide>
-            <select
-              value={form.target_route_version_id}
-              onChange={(e) => {
-                const value = e.target.value;
-                setForm((f: Row) => ({
-                  ...f,
-                  target_route_version_id: value,
-                  target_node_id: "",
-                }));
-              }}
-            >
-              <option value="">
-                {t(c.route_free ? "noRoute" : "inheritRoute")}
-              </option>
-              {catalog.process_route_versions
-                ?.filter((v: Row) => v.status === "ACTIVE" && v.id !== c.route_version_id)
-                .map((v: Row) => (
-                  <option key={v.id} value={v.id}>
-                    {catalog.process_routes?.find((r: Row) => r.id === v.route_id)?.name}
-                    {" / "}{v.version}
-                  </option>
-                ))}
-            </select>
-          </Field>
+          <>
+            <Field label={t("reworkCompletion")} wide>
+              <select
+                value={form.rework_completion}
+                onChange={(e) => update("rework_completion", e.target.value)}
+              >
+                <option value="independent">{t("reworkIndependent")}</option>
+                <option value="return_to_source">{t("reworkReturnToSource")}</option>
+              </select>
+            </Field>
+            {form.rework_completion === "return_to_source" && (
+              <p className="info wide">{t("reworkReturnHint")}</p>
+            )}
+            <Field label={t("reworkRoute")} wide>
+              <select
+                value={form.target_route_version_id}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForm((f: Row) => ({
+                    ...f,
+                    target_route_version_id: value,
+                    target_node_id: "",
+                  }));
+                }}
+              >
+                <option value="">
+                  {t(c.route_free ? "noRoute" : "inheritRoute")}
+                </option>
+                {catalog.process_route_versions
+                  ?.filter((v: Row) => v.status === "ACTIVE" && v.id !== c.route_version_id)
+                  .map((v: Row) => (
+                    <option key={v.id} value={v.id}>
+                      {catalog.process_routes?.find((r: Row) => r.id === v.route_id)?.name}
+                      {" / "}{v.version}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          </>
         )}
         {((kind === "skip" && !c.route_free) ||
           (kind === "rework" && (!c.route_free || targetRouteVersion > 0))) && (
@@ -2019,9 +2053,11 @@ function ActionModal({
                 <option value="return">
                   {t("returned")} · {fmt(c.current_qty)}
                 </option>
-                <option value="transfer">
-                  {t("transferred")} · {fmt(c.current_qty)}
-                </option>
+                {!snapshot.rework_return && (
+                  <option value="transfer">
+                    {t("transferred")} · {fmt(c.current_qty)}
+                  </option>
+                )}
               </select>
             </Field>
           </>

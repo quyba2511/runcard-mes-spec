@@ -73,6 +73,7 @@ class Action(Strict):
     disposition:Literal['keep','mark','scrap','return','transfer']|None=None
     target_node_id:int|None=None
     target_route_version_id:int|None=Field(default=None,gt=0,description='Optional active route version for the new rework card')
+    rework_completion:Literal['independent','return_to_source']|None=None
     authorization_token:str|None=None
     actual_operator_id:UUID|None=None
     occurred_at:datetime|None=None
@@ -222,7 +223,12 @@ def card_detail(card_id:UUID,a:Actor):
         require(c,'NOT_FOUND','Card not found')
         records=all_rows(db,'SELECT w.*,o.name AS operation_name,e.mes_code,COALESCE(a.employee_no,a.display_name) AS operator_name,a.display_name AS operator_display FROM work_records w JOIN operations o ON o.id=w.operation_id LEFT JOIN equipments e ON e.id=w.equipment_id JOIN accounts a ON a.id=w.operator_id WHERE w.run_card_id=%s ORDER BY started_at DESC,w.id DESC',(card_id,))
         route=one(db,'SELECT r.name,v.version FROM process_route_versions v JOIN process_routes r ON r.id=v.route_id WHERE v.id=%s',(c['route_version_id'],)) if c['route_version_id'] else None
+        rework_return = one(db, '''SELECT p.card_no AS target_card_no, p.id AS target_card_id, r.finished_at, r.received_qty
+            FROM rework_returns r JOIN run_cards p ON p.id=r.target_card_id WHERE r.rework_card_id=%s''', (card_id,))
+        awaiting_rework = one(db, '''SELECT c.id, c.card_no FROM rework_returns r JOIN run_cards c ON c.id=r.rework_card_id
+            WHERE r.target_card_id=%s AND r.finished_at IS NULL''', (card_id,))
         return clean({'card':c,'route':route,'records':records,'children':all_rows(db,'SELECT * FROM run_cards WHERE parent_card_id=%s',(card_id,)),
+          'rework_return':rework_return,'awaiting_rework':awaiting_rework,
           'nodes':all_rows(db,'SELECT n.*,o.name,o.code FROM route_nodes n JOIN operations o ON o.id=n.operation_id WHERE n.route_version_id=%s ORDER BY seq',(c['route_version_id'],)),
           'defects':all_rows(db,'SELECT d.* FROM work_record_defects d JOIN work_records w ON w.id=d.work_record_id WHERE w.run_card_id=%s',(card_id,)),
           'qc':all_rows(db,'SELECT q.* FROM work_record_qc_values q JOIN work_records w ON w.id=q.work_record_id WHERE w.run_card_id=%s',(card_id,))})

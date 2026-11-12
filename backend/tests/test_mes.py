@@ -69,6 +69,72 @@ def eq_id(s):
     return str(s['equipment']['id'])
 
 
+@pytest.mark.parametrize('mode', ['independent', 'return_to_source'])
+def test_rework_completion_counts_accepted_quantity_once(client, setup_db, mode):
+    s = setup_db
+    route = post(client, s, '/routes', {'route_name': 'Packing', 'version': 'v1', 'operation_ids': [7]}, 'admin', 201)
+    wo = post(client, s, '/work-orders', {'wo_no': 'WO-REWORK', 'planned_qty': 20, 'route_version_id': route['id']}, 'admin')
+    production = post(client, s, f"/work-orders/{wo['id']}/release", {}, 'admin')['cards'][0]
+    production_path = f"/cards/{production['id']}"
+    outcome = post(client, s, production_path + '/rework',
+                   {'version': production['version'], 'qty': 20, 'rework_completion': mode,
+                    'target_node_id': production['current_node_id']}, 'admin')
+    rework = outcome['children'][0]
+    if mode == 'return_to_source':
+        blocked = post(client, s, production_path + '/check-in',
+                       {'version': outcome['card']['version'], 'operation_code': 'DEMO_PKG'}, expected=422)
+        assert blocked['code'] == 'REWORK_PENDING'
+        assert get(client, s, production_path)['awaiting_rework']['id'] == rework['id']
+    rework_path = f"/cards/{rework['id']}"
+    started = post(client, s, rework_path + '/check-in',
+                   {'version': rework['version'], 'operation_code': 'DEMO_PKG'})['card']
+    checkout = {'version': started['version'], 'output_qty': 20}
+    key = str(uuid4())
+    finished = post(client, s, rework_path + '/check-out', checkout, key=key)
+    assert post(client, s, rework_path + '/check-out', checkout, key=key) == finished
+    order_path = f"/work-orders/{wo['id']}"
+    if mode == 'return_to_source':
+        detail = get(client, s, production_path)
+        assert detail['awaiting_rework'] is None
+        assert detail['card']['status'] == 'WAITING' and float(detail['card']['current_qty']) == 20
+        assert float(detail['card']['rework_qty']) == 0
+        assert finished['card']['status'] == 'TRANSFERRED' and float(finished['card']['transferred_qty']) == 20
+        assert float(get(client, s, rework_path)['rework_return']['received_qty']) == 20
+        assert float(get(client, s, order_path)['work_order']['good_qty']) == 0
+        started = post(client, s, production_path + '/check-in',
+                       {'version': detail['card']['version'], 'operation_code': 'DEMO_PKG'})['card']
+        post(client, s, production_path + '/check-out', {'version': started['version'], 'output_qty': 20})
+    else:
+        assert finished['card']['status'] == 'COMPLETED'
+        assert get(client, s, production_path)['card']['status'] == 'TRANSFERRED'
+    assert float(get(client, s, order_path)['work_order']['good_qty']) == 20
+
+
+def test_return_from_defect_card_credits_only_accepted_quantity(client, setup_db):
+    s = setup_db
+    initial = finish(client, s, start(client, s), qty=90)
+    production, defect = initial['card'], initial['children'][0]
+    route = post(client, s, '/routes', {'route_name': 'Recheck', 'version': 'v1', 'operation_ids': [7]}, 'admin', 201)
+    with connection() as db:
+        node = one(db, 'SELECT id FROM route_nodes WHERE route_version_id=%s', (route['id'],))
+        code = one(db, "SELECT id FROM defect_codes WHERE code='DEMO-D06'")
+    rework = post(client, s, f"/cards/{defect['id']}/rework",
+                  {'version': defect['version'], 'qty': 10, 'rework_completion': 'return_to_source',
+                   'target_route_version_id': route['id'], 'target_node_id': node['id']}, 'admin')['children'][0]
+    assert rework['parent_card_id'] == defect['id']
+    rework_path = f"/cards/{rework['id']}"
+    assert get(client, s, rework_path)['rework_return']['target_card_id'] == production['id']
+    started = post(client, s, rework_path + '/check-in',
+                   {'version': rework['version'], 'operation_code': 'DEMO_PKG'})['card']
+    finished = post(client, s, rework_path + '/check-out',
+                    {'version': started['version'], 'output_qty': 8,
+                     'defects': [{'defect_code_id': code['id'], 'qty': 2}]})
+    assert float(finished['children'][0]['current_qty']) == 2
+    restored = get(client, s, f"/cards/{production['id']}")['card']
+    assert restored['current_node_id'] == production['current_node_id']
+    assert float(restored['current_qty']) == 98 and float(restored['defect_qty']) == 2
+
+
 def test_work_order_release_progress_and_close(client, setup_db):
     s = setup_db
     wo = post(client, s, '/work-orders', {'wo_no': 'WO-T1', 'item_no': 'PCBA-001', 'planned_qty': 250, 'lot_size': 100, 'priority': 2}, 'admin')

@@ -73,7 +73,7 @@ Mở `.env` trên máy của bạn để lấy mật khẩu demo và mã thiết
 | Máy in kem hàn | `DEMO-PRT01` |
 | QC mẫu trạm đầu | Độ dày kem hàn 100–150 μm |
 
-Compose khởi tạo `schema.sql` → `seed_demo.sql` → `002_runtime.sql` trên volume mới. Khi API khởi động, nó áp dụng `003_mes_extensions.sql` một lần trên cả database mới và database đã chạy bản RunCard trước. Để nâng cấp, giữ file `.env` và volume hiện tại, rồi chạy `docker compose up --build -d --wait` từ cùng thư mục. Chức năng mở rộng được mô tả trong [docs/10-mes-extensions.md](docs/10-mes-extensions.md).
+Compose khởi tạo `schema.sql` → `seed_demo.sql` → `002_runtime.sql` trên volume mới. Khi API khởi động, nó áp dụng các migration `003_mes_extensions.sql` và `004_rework_returns.sql` một lần trên cả database mới và database đã chạy bản RunCard trước. Để nâng cấp, giữ file `.env` và volume hiện tại, rồi chạy `docker compose up --build -d --wait` từ cùng thư mục. Chức năng mở rộng được mô tả trong [docs/10-mes-extensions.md](docs/10-mes-extensions.md).
 
 Để sử dụng camera/PWA trên tablet qua LAN, cần HTTPS. Backend không mở cổng trực tiếp ra ngoài; frontend proxy cùng origin tới API. Không có endpoint ERP/SMTP mặc định, nên không gửi dữ liệu ra hệ thống thật.
 

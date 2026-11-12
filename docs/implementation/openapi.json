@@ -6805,6 +6805,21 @@
             "title": "Target Route Version Id",
             "description": "Optional active route version for the new rework card"
           },
+          "rework_completion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "independent",
+                  "return_to_source"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rework Completion"
+          },
           "authorization_token": {
             "anyOf": [
               {

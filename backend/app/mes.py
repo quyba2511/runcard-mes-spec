@@ -201,6 +201,7 @@ def auto_schedule(body: AutoSchedule, a: Actor, key: Key):
             FROM run_cards c JOIN route_nodes n ON n.id=c.current_node_id JOIN operations o ON o.id=n.operation_id
             LEFT JOIN work_orders w ON w.id=c.work_order_id
             WHERE c.status='WAITING' AND c.current_qty>0
+              AND NOT EXISTS (SELECT 1 FROM rework_returns r WHERE r.target_card_id=c.id AND r.finished_at IS NULL)
             ORDER BY COALESCE(w.priority,5), w.due_date NULLS LAST, c.created_at''')
         slots, unplanned = [], []
         for c in cards:
