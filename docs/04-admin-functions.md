@@ -25,7 +25,8 @@ Tải `.xlsx` theo template (`下載範本`) → `上傳並驗證`. Tất cả t
 
 ## 重工 (rework)
 - Sinh thẻ `R{YYMM}{seq}`, lưu `重工來源卡`.
-- Chọn công đoạn bắt đầu lại.
+- Mặc định dùng phiên bản tuyến của thẻ gốc. Có thể chọn một phiên bản tuyến đang hoạt động cho thẻ R, rồi chọn công đoạn bắt đầu trên phiên bản đó.
+- Thẻ gốc không có tuyến thì thẻ R mặc định cũng không có tuyến, hoặc có thể chọn một tuyến đang hoạt động.
 - Gốc tăng `累計重工`.
 
 ## 臨時工序

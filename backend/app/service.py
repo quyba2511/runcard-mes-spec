@@ -132,8 +132,15 @@ def card_action(db, actor, card_id, action):
             else:
                 prev=one(db,'SELECT max(ended_at) AS at FROM work_records WHERE run_card_id=%s AND revoked_at IS NULL',(card_id,))
                 require(not prev['at'] or at>=prev['at'],'WORK_TIME','Backfill cannot overlap previous work')
+    target_route_version = action.get('target_route_version_id')
+    if target_route_version is not None:
+        require(kind == 'rework', 'ROUTE', 'A new route can only be selected for rework')
+        if target_route_version != card['route_version_id']:
+            active = one(db, "SELECT id FROM process_route_versions WHERE id=%s AND status='ACTIVE'", (target_route_version,))
+            require(active, 'ROUTE', 'Choose an active route version for rework')
     if action.get('target_node_id') is not None:
-        target=one(db,'SELECT * FROM route_nodes WHERE id=%s AND route_version_id=%s',(action['target_node_id'],card['route_version_id']))
+        route_version = target_route_version if target_route_version is not None else card['route_version_id']
+        target=one(db,'SELECT * FROM route_nodes WHERE id=%s AND route_version_id=%s',(action['target_node_id'],route_version))
         ctx['target_node_valid']=bool(target)
     if kind=='skip':
         current=one(db,'SELECT seq FROM route_nodes WHERE id=%s',(card['current_node_id'],))

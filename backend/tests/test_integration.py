@@ -97,6 +97,41 @@ def test_idempotency_and_payload_conflict(client,setup_db):
     with connection() as db: assert one(db,'SELECT count(*) AS n FROM work_records')['n']==1
 
 
+def test_rework_card_can_follow_its_own_route(client, setup_db):
+    s = setup_db
+    parent = s['cards'][0]
+    route = {'route_name': 'Rework route', 'operation_ids': [1, 7]}
+    draft = post(client, s, '/routes', {**route, 'version': 'v0', 'activate': False}, 'admin', 201)
+    active = post(client, s, '/routes', {**route, 'route_id': draft['route_id'], 'version': 'v1'}, 'admin', 201)
+    with connection() as db:
+        nodes = all_rows(db, 'SELECT id FROM route_nodes WHERE route_version_id=%s ORDER BY seq', (active['id'],))
+        draft_node = one(db, 'SELECT id FROM route_nodes WHERE route_version_id=%s ORDER BY seq LIMIT 1', (draft['id'],))
+    path = f"/cards/{parent['id']}/rework"
+    body = {'version': parent['version'], 'qty': 40}
+    invalid = post(client, s, path, {**body, 'target_route_version_id': active['id'],
+                                   'target_node_id': parent['current_node_id']}, 'admin', 422)
+    assert invalid['code'] == 'ROUTE'
+    invalid = post(client, s, path, {**body, 'target_route_version_id': draft['id'],
+                                   'target_node_id': draft_node['id']}, 'admin', 422)
+    assert invalid['code'] == 'ROUTE'
+    request = {**body, 'target_route_version_id': active['id'], 'target_node_id': nodes[0]['id']}
+    key = str(uuid4())
+    result = post(client, s, path, request, 'admin', key=key)
+    assert post(client, s, path, request, 'admin', key=key) == result
+    original, rework = result['card'], result['children'][0]
+    assert original['route_version_id'] == parent['route_version_id']
+    assert original['current_node_id'] == parent['current_node_id']
+    assert Decimal(original['current_qty']) == 60 and Decimal(original['rework_qty']) == 40
+    assert rework['parent_card_id'] == str(parent['id']) and rework['card_no'].startswith('R')
+    assert rework['route_version_id'] == active['id'] and rework['current_node_id'] == nodes[0]['id']
+    card_path = f"/cards/{rework['id']}"
+    started = post(client, s, card_path + '/check-in',
+                   {'version': rework['version'], 'equipment_id': str(s['equipment']['id'])})['card']
+    advanced = post(client, s, card_path + '/check-out',
+                    {'version': started['version'], 'output_qty': 40, 'qc': [{'qc_item_id': 1, 'value': 125}]})['card']
+    assert advanced['current_node_id'] == nodes[1]['id']
+
+
 def test_stale_version_and_atomic_invalid_checkout(client,setup_db):
     s=setup_db;c=start(client,s)
     post(client,s,f"/cards/{c['id']}/check-out",{'version':1,'output_qty':100},expected=409)

@@ -1630,6 +1630,7 @@ function ActionModal({
     equipment_id: "",
     operation_id: "",
     target_node_id: "",
+    target_route_version_id: "",
     operation_code: "",
     disposition: kind === "cancel" ? "scrap" : "keep",
     actual_operator_id: "",
@@ -1644,6 +1645,16 @@ function ActionModal({
     [supervisor, setSupervisor] = useState({ username: "", password: "" });
   const { send, busy, error } = useCommand();
   const update = (k: string, v: any) => setForm((f: Row) => ({ ...f, [k]: v }));
+  const targetRouteVersion = Number(form.target_route_version_id);
+  const targetNodes = targetRouteVersion
+    ? (catalog.route_nodes || [])
+        .filter((node: Row) => node.route_version_id === targetRouteVersion)
+        .sort((a: Row, b: Row) => a.seq - b.seq)
+        .map((node: Row) => ({
+          ...node,
+          name: catalog.operations?.find((op: Row) => op.id === node.operation_id)?.name,
+        }))
+    : snapshot.nodes;
   const selectedNode = snapshot.nodes.find(
     (n: Row) =>
       n.id ===
@@ -1704,7 +1715,7 @@ function ActionModal({
     let body: Row = { version: form.version };
     for (const [k, v] of Object.entries(form))
       if (v !== "" && v !== null) body[k] = v;
-    for (const k of ["operation_id", "target_node_id"])
+    for (const k of ["operation_id", "target_node_id", "target_route_version_id"])
       if (body[k]) body[k] = Number(body[k]);
     if (body.occurred_at)
       body.occurred_at = new Date(body.occurred_at).toISOString();
@@ -1768,7 +1779,35 @@ function ActionModal({
         <div className="wide">
           <ErrorBox error={error || scanError} />
         </div>
-        {(kind === "skip" || kind === "rework") && !c.route_free && (
+        {kind === "rework" && (
+          <Field label={t("reworkRoute")} wide>
+            <select
+              value={form.target_route_version_id}
+              onChange={(e) => {
+                const value = e.target.value;
+                setForm((f: Row) => ({
+                  ...f,
+                  target_route_version_id: value,
+                  target_node_id: "",
+                }));
+              }}
+            >
+              <option value="">
+                {t(c.route_free ? "noRoute" : "inheritRoute")}
+              </option>
+              {catalog.process_route_versions
+                ?.filter((v: Row) => v.status === "ACTIVE" && v.id !== c.route_version_id)
+                .map((v: Row) => (
+                  <option key={v.id} value={v.id}>
+                    {catalog.process_routes?.find((r: Row) => r.id === v.route_id)?.name}
+                    {" / "}{v.version}
+                  </option>
+                ))}
+            </select>
+          </Field>
+        )}
+        {((kind === "skip" && !c.route_free) ||
+          (kind === "rework" && (!c.route_free || targetRouteVersion > 0))) && (
           <Field label={t("target")} wide>
             <select
               required
@@ -1776,7 +1815,7 @@ function ActionModal({
               onChange={(e) => update("target_node_id", e.target.value)}
             >
               <option value="">{t("choose")}</option>
-              {snapshot.nodes
+              {targetNodes
                 .filter(
                   (n: Row) =>
                     kind !== "skip" ||

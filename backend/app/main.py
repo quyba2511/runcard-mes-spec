@@ -72,6 +72,7 @@ class Action(Strict):
     production_note:str|None=None
     disposition:Literal['keep','mark','scrap','return','transfer']|None=None
     target_node_id:int|None=None
+    target_route_version_id:int|None=Field(default=None,gt=0,description='Optional active route version for the new rework card')
     authorization_token:str|None=None
     actual_operator_id:UUID|None=None
     occurred_at:datetime|None=None

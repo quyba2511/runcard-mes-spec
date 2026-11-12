@@ -61,11 +61,13 @@ def transition(card, action, ctx):
 
     def state(*allowed):
         require(c['status'] in allowed, 'STATE', 'Action is not available in this state')
-    def child(source, qty, status='WAITING', node=None):
+    def child(source, qty, status='WAITING', node=None, route_version=None):
         x = deepcopy(c)
         x.update({k: Decimal(0) for k in QTY})
         x.update(id=None, card_no=None, original_qty=qty, current_qty=qty, status=status, source_type=source,
                  parent_card_id=c['id'], data_source='SYSTEM', version=1, abnormal_counts={}, current_node_id=c['current_node_id'] if node is None else node)
+        if route_version is not None:
+            x.update(route_version_id=route_version, route_free=False)
         effects.append({'type': 'child', 'card': x})
     def idle():
         if open_record and open_record.get('equipment_id'):
@@ -157,9 +159,14 @@ def transition(card, action, ctx):
         take(qty, 'split_qty')
     elif kind == 'rework':
         state('WAITING', 'QUALITY_HOLD', 'ABNORMAL', 'DEFECT_HOLD')
-        require(c['route_free'] or ctx.get('target_node_valid'), 'ROUTE', 'Choose a node from the same route version')
+        route_version = action.get('target_route_version_id')
+        node = action.get('target_node_id')
+        if route_version is not None or not c['route_free']:
+            require(ctx.get('target_node_valid'), 'ROUTE', 'Choose a starting node from the selected route version')
+        else:
+            require(node is None, 'ROUTE', 'A route-free card cannot have a starting node')
         qty = number(action.get('qty'))
-        child('REWORK', qty, node=action.get('target_node_id'))
+        child('REWORK', qty, node=node, route_version=route_version)
         take(qty, 'rework_qty')
         if not c['current_qty']:
             c['status'] = 'TRANSFERRED'

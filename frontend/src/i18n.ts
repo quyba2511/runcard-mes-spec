@@ -50,6 +50,8 @@ export const messages: Record<string, [string, string]> = {
   defect: ["Lỗi", "瑕疵"],
   scrap: ["Báo phế", "報廢"],
   rework: ["Làm lại", "重工"],
+  reworkRoute: ["Tuyến làm lại", "重工工藝路線"],
+  inheritRoute: ["Dùng tuyến của thẻ gốc", "沿用來源卡工藝路線"],
   split: ["Tách lô", "拆批"],
   returned: ["Trả kho", "退庫"],
   transferred: ["Chuyển thẻ", "轉單"],
