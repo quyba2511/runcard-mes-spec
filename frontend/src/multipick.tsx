@@ -8,6 +8,7 @@ import { useApp } from "./ctx";
 import "./multipick.css";
 
 const COMPACT_ABOVE = 8;
+const CHIPS_SHOWN = 12;
 const LABELS: Record<string, [string, string]> = {
   search: ["Tìm theo mã hoặc tên…", "依代碼或名稱搜尋…"],
   selected: ["Đã chọn", "已選"],
@@ -17,6 +18,8 @@ const LABELS: Record<string, [string, string]> = {
   dropShown: ["Bỏ chọn kết quả", "取消結果"],
   remove: ["Bỏ", "移除"],
   off: ["ngừng dùng", "停用"],
+  more: ["mục nữa", "項"],
+  less: ["Thu gọn", "收合"],
 };
 
 export function MultiPick({
@@ -35,7 +38,8 @@ export function MultiPick({
   nameKey?: string;
 }) {
   const { lang } = useApp();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(""),
+    [allChips, setAllChips] = useState(false);
   const tr = (k: string) => LABELS[k][lang === "vi" ? 0 : 1];
   // "CODE · name" when the option has its own code; just the name otherwise (permissions, accounts).
   const text = (o: Row) =>
@@ -75,7 +79,7 @@ export function MultiPick({
       </div>
       <div className="multipick-chips">
         {chosen.length === 0 && <span className="muted">{tr("none")}</span>}
-        {chosen.map((o) => (
+        {(allChips ? chosen : chosen.slice(0, CHIPS_SHOWN)).map((o) => (
           <button
             type="button"
             className="multipick-chip"
@@ -87,6 +91,11 @@ export function MultiPick({
             <X size={12} />
           </button>
         ))}
+        {chosen.length > CHIPS_SHOWN && (
+          <button type="button" className="multipick-more" onClick={() => setAllChips(!allChips)}>
+            {allChips ? tr("less") : `+${chosen.length - CHIPS_SHOWN} ${tr("more")}`}
+          </button>
+        )}
       </div>
       <div className="multipick-tools">
         <label className="multipick-search">

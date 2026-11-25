@@ -24,8 +24,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 76px;
-  overflow-y: auto;
   margin-bottom: 10px;
   font-size: 11px;
 }
@@ -45,6 +43,20 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.multipick-more {
+  padding: 3px 9px;
+  border: 1px dashed #c9d6a2;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--green);
+  font-size: 11px;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.multipick-more:hover {
+  background: #f1f6df;
 }
 .multipick-chip:hover {
   background: #cfe182;
